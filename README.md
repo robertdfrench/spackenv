@@ -1,0 +1,2 @@
+# spackenv
+Spack Environment Manager
