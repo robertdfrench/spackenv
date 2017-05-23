@@ -1,0 +1,59 @@
+#!/bin/bash
+if [ $# -ne 2 ]; then
+    cat << EndOfMessage
+USAGE:  spackenv <env_name> requirements.txt
+
+    env_name: a folder such as '.venv' that stores your spack environment
+    requirements.txt: a file with one spack spec on each line
+EndOfMessage
+    exit 1
+fi
+
+ENVNAME=$1
+REQUIREMENTS=$2
+GIT=`which git`
+
+function log {
+    echo "# $1"
+}
+
+function execute_in_dir {
+    cmd=$1
+    dir=$2
+
+    _original=`pwd`; cd $dir; $cmd; cd $_original
+}
+
+function update_spack {
+    spack_path=$1
+
+    log "Updating existing spack at $spack_path"
+    execute_in_dir "$GIT pull" $spack_path
+}
+
+function create_spack {
+    spack_path=$1
+
+    log "Creating new spack at $spack_path"
+    $GIT clone https://github.com/LLNL/spack.git $spack_path
+}
+
+function assert_spack_exists {
+    spack_path=$1
+
+    if [ -d $spack_path ]; then
+        update_spack $spack_path
+    else
+        create_spack $spack_path
+    fi
+}
+
+assert_spack_exists $ENVNAME
+if [ -f "$REQUIREMENTS" ]; then
+    source $ENVNAME/share/spack/setup-env.sh
+    while read spec; do
+        spack -v install $spec </dev/null
+    done <$REQUIREMENTS
+else
+    log "$REQUIREMENTS does not exist"
+fi
