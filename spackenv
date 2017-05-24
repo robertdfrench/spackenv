@@ -1,16 +1,18 @@
 #!/bin/bash
-if [ $# -ne 2 ]; then
+if [ $# -lt 2 ]; then
     cat << EndOfMessage
-USAGE:  spackenv <env_name> requirements.txt
+USAGE:  spackenv <env_name> requirements.txt [known.txt]
 
     env_name: a folder such as '.venv' that stores your spack environment
     requirements.txt: a file with one spack spec on each line
+    known.txt (optional): a list of packages known to already be installed
 EndOfMessage
     exit 1
 fi
 
 ENVNAME=$1
 REQUIREMENTS=$2
+KNOWN=$3
 GIT=`which git`
 
 function log {
@@ -48,7 +50,43 @@ function assert_spack_exists {
     fi
 }
 
+function append_external_package {
+    package_name=$1
+    manifest=$2
+
+    cat >> $manifest << EndOfMessage
+    $package_name:
+        buildable: false
+        version: [system]
+        paths:
+            $package_name@system: /usr
+
+EndOfMessage
+}
+
+function setup_external_packages {
+    spack_path=$1
+    known_package_list=$2
+
+    package_manifest=$spack_path/etc/spack/packages.yaml
+
+    if [ -n "$known_package_list" ]; then
+        if [ -f "$known_package_list" ]; then
+            echo "packages:" > $package_manifest
+            while read external; do
+                append_external_package $external $package_manifest
+            done <$known_package_list
+        else
+            log "$known_package_list does not exist"
+            exit 1
+        fi
+    else
+        log "No known packages are predefined"
+    fi
+}
+
 assert_spack_exists $ENVNAME
+setup_external_packages $ENVNAME $KNOWN
 if [ -f "$REQUIREMENTS" ]; then
     source $ENVNAME/share/spack/setup-env.sh
     while read spec; do
